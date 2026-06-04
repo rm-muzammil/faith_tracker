@@ -6,8 +6,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Always use PKT (UTC+5) — works on Vercel (UTC) and locally
 export function todayISO(): string {
-  return format(new Date(), "yyyy-MM-dd");
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" });
 }
 
 export function formatDisplayDate(iso: string): string {
@@ -15,8 +16,13 @@ export function formatDisplayDate(iso: string): string {
 }
 
 export function isFriday(date?: string): boolean {
-  const d = date ? parseISO(date) : new Date();
-  return d.getDay() === 5;
+  if (date) return parseISO(date).getDay() === 5;
+  // Check Friday in PKT, not UTC
+  const pkt = new Date().toLocaleDateString("en-US", {
+    timeZone: "Asia/Karachi",
+    weekday: "long",
+  });
+  return pkt === "Friday";
 }
 
 export function scoreColor(score: number): string {
