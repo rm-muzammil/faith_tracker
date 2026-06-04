@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { dailyLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { isActivityGreen } from "@/lib/scoring";
+import { todayISO } from "@/lib/utils";
 import { DashboardClient } from "./DashboardClient";
 
 export const dynamic = "force-dynamic";
@@ -42,19 +43,23 @@ async function fetchDashboardData(today: string, attempt = 1): Promise<{
       score: r.finalScore,
     }));
 
+    // Streak — compare dates in PKT, not UTC
     const sortedDates = recentLogs.map((r) => r.date).sort().reverse();
     let streak = 0;
     for (let i = 0; i < sortedDates.length; i++) {
-      const expected = new Date(today);
+      // Build expected date by subtracting i days from today (PKT)
+      const expected = new Date(today + "T00:00:00+05:00");
       expected.setDate(expected.getDate() - i);
-      if (sortedDates[i] === expected.toISOString().slice(0, 10)) streak++;
+      const expectedStr = expected.toLocaleDateString("en-CA", {
+        timeZone: "Asia/Karachi",
+      });
+      if (sortedDates[i] === expectedStr) streak++;
       else break;
     }
 
     return { existing: existing ?? null, activityData, streak };
   } catch (err) {
     if (attempt < 3) {
-      // Neon cold start — wait and retry
       await new Promise((r) => setTimeout(r, 1500 * attempt));
       return fetchDashboardData(today, attempt + 1);
     }
@@ -63,7 +68,8 @@ async function fetchDashboardData(today: string, attempt = 1): Promise<{
 }
 
 export default async function DashboardPage() {
-  const today = new Date().toISOString().slice(0, 10);
+  // PKT-aware date — fixes UTC offset issue on Vercel and local
+  const today = todayISO();
   const { existing, activityData, streak } = await fetchDashboardData(today);
 
   return (
