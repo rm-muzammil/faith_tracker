@@ -40,25 +40,13 @@ export function SettingsClient({ initialSettings }: Props) {
   async function testPush() {
     setTesting(true);
     try {
-      const res = await fetch(`${skUrl}/api/provinces/report`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Api-Key": apiKey,
-        },
-        body: JSON.stringify({
-          score: 0,
-          label: "Faith",
-          streak: 0,
-          todayDone: false,
-          updatedAt: new Date().toISOString(),
-          details: {},
-        }),
-      });
-      if (res.ok) toast.success("Self-Khilafah reached ✓");
-      else toast.error(`Response: ${res.status}`);
+      // Route through server-side API to avoid CORS
+      const res = await fetch("/api/settings/test-push", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) toast.success("Self-Khilafah reached ✓");
+      else toast.error(data.error ?? "Push failed");
     } catch {
-      toast.error("Could not reach Self-Khilafah");
+      toast.error("Could not reach server");
     } finally {
       setTesting(false);
     }
@@ -107,7 +95,7 @@ export function SettingsClient({ initialSettings }: Props) {
             className="btn-ghost flex items-center gap-2 flex-1"
           >
             <RefreshCw className={`w-4 h-4 ${testing ? "animate-spin" : ""}`} />
-            Test Push
+            {testing ? "Testing…" : "Test Push"}
           </button>
         </div>
       </div>

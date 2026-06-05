@@ -1,3 +1,4 @@
+// src/lib/province.ts
 import type { DailyLog } from "@/db/schema";
 
 interface ProvincePayload {
@@ -16,7 +17,9 @@ export async function pushProvinceReport(
   vocabCount: number,
   skUrl: string,
   apiKey: string
-) {
+): Promise<{ ok: boolean; error?: string }> {
+  if (!skUrl || !apiKey) return { ok: false, error: "SK URL or API key not set" }
+
   const payload: ProvincePayload = {
     score: log.finalScore,
     label: "Faith",
@@ -24,9 +27,7 @@ export async function pushProvinceReport(
     todayDone: true,
     updatedAt: new Date().toISOString(),
     details: {
-      salah: [log.fajr, log.dhuhr, log.asr, log.maghrib, log.isha].filter(
-        Boolean
-      ).length,
+      salah: [log.fajr, log.dhuhr, log.asr, log.maghrib, log.isha].filter(Boolean).length,
       onTime: log.onTime,
       quranPages: log.quranPages,
       adhkar: log.morningAdhkar && log.eveningAdhkar,
@@ -45,15 +46,23 @@ export async function pushProvinceReport(
     },
   };
 
-  // Fire-and-forget — never block on failure
-  fetch(`${skUrl}/api/provinces/report`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Api-Key": apiKey,
-    },
-    body: JSON.stringify(payload),
-  }).catch(() => {
-    // Silently swallow — Self-Khilafah may not be ready
-  });
+  try {
+    const res = await fetch(`${skUrl}/api/provinces/report`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": apiKey,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      return { ok: false, error: `SK returned ${res.status}: ${text}` }
+    }
+
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Network error" }
+  }
 }

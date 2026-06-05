@@ -1,3 +1,4 @@
+// src/app/api/settings/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
