@@ -13,6 +13,7 @@ export function SettingsClient({ initialSettings }: Props) {
     initialSettings["sk_url"] ?? "https://self-khilafah.vercel.app"
   );
   const [apiKey, setApiKey] = useState(initialSettings["api_key"] ?? "");
+  const [geminiKey, setGeminiKey] = useState(initialSettings['gemini_api_key'] ?? '');
   const [verseIndex, setVerseIndex] = useState(
     parseInt(initialSettings["current_verse_index"] ?? "0", 10)
   );
@@ -28,6 +29,7 @@ export function SettingsClient({ initialSettings }: Props) {
         body: JSON.stringify({
           sk_url: skUrl,
           api_key: apiKey,
+          gemini_api_key: geminiKey,
           current_verse_index: String(verseIndex),
         }),
       });
@@ -40,13 +42,25 @@ export function SettingsClient({ initialSettings }: Props) {
   async function testPush() {
     setTesting(true);
     try {
-      // Route through server-side API to avoid CORS
-      const res = await fetch("/api/settings/test-push", { method: "POST" });
-      const data = await res.json();
-      if (data.ok) toast.success("Self-Khilafah reached ✓");
-      else toast.error(data.error ?? "Push failed");
+      const res = await fetch(`${skUrl}/api/provinces/report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": apiKey,
+        },
+        body: JSON.stringify({
+          score: 0,
+          label: "Faith",
+          streak: 0,
+          todayDone: false,
+          updatedAt: new Date().toISOString(),
+          details: {},
+        }),
+      });
+      if (res.ok) toast.success("Self-Khilafah reached ✓");
+      else toast.error(`Response: ${res.status}`);
     } catch {
-      toast.error("Could not reach server");
+      toast.error("Could not reach Self-Khilafah");
     } finally {
       setTesting(false);
     }
@@ -95,9 +109,40 @@ export function SettingsClient({ initialSettings }: Props) {
             className="btn-ghost flex items-center gap-2 flex-1"
           >
             <RefreshCw className={`w-4 h-4 ${testing ? "animate-spin" : ""}`} />
-            {testing ? "Testing…" : "Test Push"}
+            Test Push
           </button>
         </div>
+      </div>
+
+      {/* Gemini AI */}
+      <div className="card space-y-3">
+        <p className="section-title mb-0">AI Guidance (Gemini)</p>
+        <div>
+          <label className="text-xs text-zinc-500 mb-1.5 flex items-center gap-1.5">
+            <Key className="w-3 h-3" /> Gemini API Key
+          </label>
+          <input
+            type="password"
+            className="pill-input"
+            value={geminiKey}
+            onChange={(e) => setGeminiKey(e.target.value)}
+            placeholder="AIza..."
+          />
+          <p className="text-xs text-zinc-600 mt-1">
+            Free at <span className="text-zinc-500">aistudio.google.com</span> — used for daily Islamic guidance
+          </p>
+        </div>
+        {geminiKey && (
+          <button
+            onClick={async () => {
+              await fetch("/api/guidance", { method: "DELETE" });
+              toast.success("Guidance cache cleared — will regenerate on next load");
+            }}
+            className="btn-ghost text-xs flex items-center gap-1.5"
+          >
+            <RefreshCw className="w-3 h-3" /> Regenerate today's guidance
+          </button>
+        )}
       </div>
 
       {/* Verse index */}

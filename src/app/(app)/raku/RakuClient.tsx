@@ -1,9 +1,11 @@
+// src/app/(app)/raku/RakuClient.tsx
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StarRating } from "@/components/ui/StarRating";
 import { ToggleRow } from "@/components/ui/ToggleRow";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import type { RakuProgress } from "@/db/schema";
 
@@ -13,54 +15,134 @@ interface Props {
   totalVocab: number;
 }
 
+type RakuState = {
+  tafseerDone: boolean;
+  tajweedConfidence: number;
+  vocabExtracted: boolean;
+  notes: string;
+};
+
 export function RakuClient({ progress, currentRaku, totalVocab }: Props) {
-  const progressMap = new Map(progress.map((p) => [p.rakuNumber, p]));
-  const completedCount = progress.filter((p) => p.completedAt).length;
+  const router = useRouter();
 
   const [expanded, setExpanded] = useState<number | null>(currentRaku);
-  const [localState, setLocalState] = useState<
-    Record<number, { tafseerDone: boolean; tajweedConfidence: number; vocabExtracted: boolean; notes: string }>
-  >(() => {
-    const init: Record<number, { tafseerDone: boolean; tajweedConfidence: number; vocabExtracted: boolean; notes: string }> = {};
-    progress.forEach((p) => {
-      init[p.rakuNumber] = {
-        tafseerDone: p.tafseerDone,
-        tajweedConfidence: p.tajweedConfidence,
-        vocabExtracted: p.vocabExtracted,
-        notes: p.notes ?? "",
-      };
-    });
-    return init;
-  });
 
-  function getState(n: number) {
-    return localState[n] ?? { tafseerDone: false, tajweedConfidence: 0, vocabExtracted: false, notes: "" };
+  // Local edits — what the user has changed since last save
+  const [localEdits, setLocalEdits] = useState<Record<number, Partial<RakuState>>>({});
+
+  // Track optimistically completed rakus (completedAt set)
+const [optimisticCompleted, setOptimisticCompleted] = useState<Set<number>>(
+  () => new Set(
+    progress
+      .filter((p) => p.tafseerDone && p.tajweedConfidence > 0 && p.vocabExtracted)
+      .map((p) => p.rakuNumber)
+  )
+);
+
+// Reset when server sends fresh data (e.g. after DB clear)
+useEffect(() => {
+  setOptimisticCompleted(new Set(
+    progress
+      .filter((p) => p.tafseerDone && p.tajweedConfidence > 0 && p.vocabExtracted)
+      .map((p) => p.rakuNumber)
+  ));
+  setLocalEdits({});
+  setExpanded(currentRaku);
+}, [progress.length, currentRaku]);
+
+  // Server state map
+  const serverMap = new Map(progress.map((p) => [p.rakuNumber, p]));
+
+  // Merged state: server data + local edits
+  function getState(n: number): RakuState {
+    const server = serverMap.get(n);
+    const edits = localEdits[n] ?? {};
+    return {
+      tafseerDone:       edits.tafseerDone      ?? server?.tafseerDone      ?? false,
+      tajweedConfidence: edits.tajweedConfidence ?? server?.tajweedConfidence ?? 0,
+      vocabExtracted:    edits.vocabExtracted    ?? server?.vocabExtracted    ?? false,
+      notes:             edits.notes             ?? server?.notes             ?? "",
+    };
   }
 
-  function patch(n: number, patch: Partial<{ tafseerDone: boolean; tajweedConfidence: number; vocabExtracted: boolean; notes: string }>) {
-    setLocalState((prev) => ({ ...prev, [n]: { ...getState(n), ...patch } }));
+  function patch(n: number, updates: Partial<RakuState>) {
+    setLocalEdits((prev) => ({
+      ...prev,
+      [n]: { ...(prev[n] ?? {}), ...updates },
+    }));
   }
 
   async function saveRaku(n: number) {
     const s = getState(n);
+
+    // Merge with server data — once true always true
+    const server = serverMap.get(n);
+    const finalTafseer  = !!(server?.tafseerDone    || s.tafseerDone);
+    const finalTajweed  = Math.max(server?.tajweedConfidence ?? 0, s.tajweedConfidence);
+    const finalVocab    = !!(server?.vocabExtracted  || s.vocabExtracted);
+    const allDone = finalTafseer && finalTajweed > 0 && finalVocab;
+
     const res = await fetch("/api/raku", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rakuNumber: n, ...s }),
+      body: JSON.stringify({
+        rakuNumber: n,
+        tafseerDone: s.tafseerDone,
+        tajweedConfidence: s.tajweedConfidence,
+        vocabExtracted: s.vocabExtracted,
+        notes: s.notes,
+      }),
     });
-    if (res.ok) {
-      toast.success(`Raku ${n} saved`);
-    } else {
+
+    if (!res.ok) {
       toast.error("Save failed");
+      return;
     }
+
+    // Clear local edits for this raku — server is now source of truth
+    setLocalEdits((prev) => {
+      const next = { ...prev };
+      delete next[n];
+      return next;
+    });
+
+    if (allDone) {
+      setOptimisticCompleted((prev) => {
+        const next = new Set(Array.from(prev));
+        next.add(n);
+        return next;
+      });
+      toast.success(`Raku ${n} complete! Moving to next.`);
+      setExpanded(n + 1);
+    } else {
+      const remaining = [
+        !finalTafseer  && "Tafseer",
+        !(finalTajweed > 0) && "Tajweed rating",
+        !finalVocab    && "Vocab extracted",
+      ].filter(Boolean).join(", ");
+      toast.success(`Saved. Still needed: ${remaining}`);
+    }
+
+    // Refresh server data
+    router.refresh();
   }
 
-  // Show rakus: current ± 5, plus all completed
+  // Current raku from optimistic set
+  const localCurrentRaku = (() => {
+    for (let i = 1; i <= 558; i++) {
+      if (!optimisticCompleted.has(i)) return i;
+    }
+    return 558;
+  })();
+
+  const completedCount = optimisticCompleted.size;
+
+  // Visible rakus: all completed + window around current
   const visibleNums = new Set<number>();
-  for (let i = Math.max(1, currentRaku - 3); i <= Math.min(558, currentRaku + 10); i++) {
+  Array.from(optimisticCompleted).forEach((n) => visibleNums.add(n));
+  for (let i = Math.max(1, localCurrentRaku - 2); i <= Math.min(558, localCurrentRaku + 8); i++) {
     visibleNums.add(i);
   }
-  progress.filter((p) => p.completedAt).forEach((p) => visibleNums.add(p.rakuNumber));
   const sorted = Array.from(visibleNums).sort((a, b) => a - b);
 
   return (
@@ -72,12 +154,12 @@ export function RakuClient({ progress, currentRaku, totalVocab }: Props) {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
-        {[
-          ["Completed", completedCount, "558"],
-          ["Current", `#${currentRaku}`, ""],
+        {([
+          ["Completed", completedCount, "/558"],
+          ["Current", `#${localCurrentRaku}`, ""],
           ["Vocab", totalVocab, "words"],
-        ].map(([label, val, sub]) => (
-          <div key={label as string} className="card text-center">
+        ] as [string, string | number, string][]).map(([label, val, sub]) => (
+          <div key={label} className="card text-center">
             <p className="text-xl font-bold text-zinc-100">{val}</p>
             {sub && <p className="text-[10px] text-zinc-500">{sub}</p>}
             <p className="text-xs text-zinc-500 mt-0.5">{label}</p>
@@ -99,22 +181,40 @@ export function RakuClient({ progress, currentRaku, totalVocab }: Props) {
         </div>
       </div>
 
+      {/* Criteria reminder */}
+      <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-xl px-3 py-2.5 text-xs text-zinc-500 leading-relaxed">
+        Complete when all 3 done:{" "}
+        <span className="text-brand-400">Tafseer ✓</span>
+        {" · "}
+        <span className="text-brand-400">Tajweed rated ✓</span>
+        {" · "}
+        <span className="text-brand-400">Vocab extracted ✓</span>
+        <br />
+        <span className="text-zinc-600">Criteria are cumulative — save each separately if needed.</span>
+      </div>
+
       {/* Raku list */}
       <div className="space-y-2">
         {sorted.map((n) => {
-          const saved = progressMap.get(n);
           const state = getState(n);
-          const isComplete = !!saved?.completedAt;
-          const isCurrent = n === currentRaku;
+          const server = serverMap.get(n);
+
+          // Effective state = merge of server + local
+          const effectiveTafseer  = !!(server?.tafseerDone    || state.tafseerDone);
+          const effectiveTajweed  = Math.max(server?.tajweedConfidence ?? 0, state.tajweedConfidence);
+          const effectiveVocab    = !!(server?.vocabExtracted  || state.vocabExtracted);
+          const isComplete = optimisticCompleted.has(n) || (effectiveTafseer && effectiveTajweed > 0 && effectiveVocab);
+          const isCurrent  = n === localCurrentRaku;
           const isExpanded = expanded === n;
+          const criteriaCount = [effectiveTafseer, effectiveTajweed > 0, effectiveVocab].filter(Boolean).length;
 
           return (
             <div
               key={n}
               className={cn(
                 "card transition-all",
-                isCurrent && "border-brand-500/30 bg-brand-500/5",
-                isComplete && !isCurrent && "opacity-70"
+                isCurrent  && "border-brand-500/30 bg-brand-500/5",
+                isComplete && !isCurrent && "opacity-60"
               )}
             >
               <button
@@ -139,37 +239,58 @@ export function RakuClient({ progress, currentRaku, totalVocab }: Props) {
                     </p>
                     <p className="text-[11px] text-zinc-600">
                       {isComplete
-                        ? `Done · ${state.tajweedConfidence}/5 tajweed`
-                        : `${[state.tafseerDone, state.tajweedConfidence > 0, state.vocabExtracted].filter(Boolean).length}/3 criteria`}
+                        ? `Complete · tajweed ${effectiveTajweed}/5`
+                        : `${criteriaCount}/3 criteria met`}
                     </p>
                   </div>
                 </div>
-                {isExpanded ? (
-                  <ChevronUp className="w-4 h-4 text-zinc-500" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-zinc-500" />
+
+                {/* T / J / V pills */}
+                {!isComplete && (
+                  <div className="flex gap-1 mr-2">
+                    {[
+                      { done: effectiveTafseer,    label: "T" },
+                      { done: effectiveTajweed > 0, label: "J" },
+                      { done: effectiveVocab,       label: "V" },
+                    ].map(({ done, label }) => (
+                      <span
+                        key={label}
+                        className={cn(
+                          "w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center",
+                          done ? "bg-brand-500/30 text-brand-400" : "bg-zinc-800 text-zinc-600"
+                        )}
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
                 )}
+
+                {isExpanded
+                  ? <ChevronUp  className="w-4 h-4 text-zinc-500 shrink-0" />
+                  : <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" />}
               </button>
 
               {isExpanded && (
                 <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4 animate-slide-up">
                   <ToggleRow
                     label="Tafseer Watched"
-                    sublabel="Dr Israr — this raku"
-                    checked={state.tafseerDone}
-                    onChange={(v) => patch(n, { tafseerDone: v })}
+                    sublabel={effectiveTafseer && !state.tafseerDone ? "Already saved ✓" : "Dr Israr — this raku"}
+                    checked={effectiveTafseer}
+                    onChange={(v) => !effectiveTafseer && patch(n, { tafseerDone: v })}
                   />
                   <StarRating
                     label="Tajweed Confidence"
-                    value={state.tajweedConfidence}
+                    sublabel="Rate your recitation of this raku"
+                    value={effectiveTajweed || state.tajweedConfidence}
                     max={5}
                     onChange={(v) => patch(n, { tajweedConfidence: v })}
                   />
                   <ToggleRow
                     label="Vocab Extracted"
-                    sublabel="Words added to vocab bank"
-                    checked={state.vocabExtracted}
-                    onChange={(v) => patch(n, { vocabExtracted: v })}
+                    sublabel={effectiveVocab && !state.vocabExtracted ? "Already saved ✓" : "Words added to vocab bank"}
+                    checked={effectiveVocab}
+                    onChange={(v) => !effectiveVocab && patch(n, { vocabExtracted: v })}
                   />
                   <textarea
                     placeholder="Notes (optional)…"
@@ -177,11 +298,25 @@ export function RakuClient({ progress, currentRaku, totalVocab }: Props) {
                     onChange={(e) => patch(n, { notes: e.target.value })}
                     className="pill-input resize-none h-20 text-xs"
                   />
+
+                  {!isComplete && (
+                    <p className="text-[11px] text-zinc-600">
+                      Still needed:{" "}
+                      {[
+                        !effectiveTafseer        && "Tafseer",
+                        !(effectiveTajweed > 0)  && "Tajweed rating",
+                        !effectiveVocab          && "Vocab extracted",
+                      ].filter(Boolean).join(", ") || "Nothing — save to complete!"}
+                    </p>
+                  )}
+
                   <button
                     onClick={() => saveRaku(n)}
-                    className="btn-primary w-full"
+                    className={cn("w-full", criteriaCount === 3 ? "btn-primary" : "btn-ghost")}
                   >
-                    Save Raku {n}
+                    {criteriaCount === 3
+                      ? `Save & Complete Raku ${n} ✓`
+                      : `Save Raku ${n} (${criteriaCount}/3)`}
                   </button>
                 </div>
               )}

@@ -2,17 +2,13 @@ import { db } from "@/db";
 import { dailyLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { isActivityGreen } from "@/lib/scoring";
-import { todayISO } from "@/lib/utils";
 import { DashboardClient } from "./DashboardClient";
+import { getHijriDate } from "@/lib/hijri";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function fetchDashboardData(today: string, attempt = 1): Promise<{
-  existing: typeof dailyLog.$inferSelect | null;
-  activityData: { date: string; green: boolean; score: number }[];
-  streak: number;
-}> {
+async function fetchDashboardData(today: string, attempt = 1) {
   try {
     const [existing] = await db
       .select()
@@ -43,17 +39,12 @@ async function fetchDashboardData(today: string, attempt = 1): Promise<{
       score: r.finalScore,
     }));
 
-    // Streak — compare dates in PKT, not UTC
     const sortedDates = recentLogs.map((r) => r.date).sort().reverse();
     let streak = 0;
     for (let i = 0; i < sortedDates.length; i++) {
-      // Build expected date by subtracting i days from today (PKT)
-      const expected = new Date(today + "T00:00:00+05:00");
+      const expected = new Date(today);
       expected.setDate(expected.getDate() - i);
-      const expectedStr = expected.toLocaleDateString("en-CA", {
-        timeZone: "Asia/Karachi",
-      });
-      if (sortedDates[i] === expectedStr) streak++;
+      if (sortedDates[i] === expected.toISOString().slice(0, 10)) streak++;
       else break;
     }
 
@@ -68,9 +59,13 @@ async function fetchDashboardData(today: string, attempt = 1): Promise<{
 }
 
 export default async function DashboardPage() {
-  // PKT-aware date — fixes UTC offset issue on Vercel and local
-  const today = todayISO();
-  const { existing, activityData, streak } = await fetchDashboardData(today);
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Fetch DB data and Hijri date in parallel
+  const [{ existing, activityData, streak }, hijri] = await Promise.all([
+    fetchDashboardData(today),
+    getHijriDate(new Date()),
+  ]);
 
   return (
     <DashboardClient
@@ -78,6 +73,10 @@ export default async function DashboardPage() {
       activityData={activityData}
       streak={streak}
       today={today}
+      hijriFormatted={hijri.formatted}
+      hijriFormattedAr={hijri.formattedAr}
+      hijriDayName={hijri.dayName}
+      hijriSource={hijri.source}
     />
   );
 }

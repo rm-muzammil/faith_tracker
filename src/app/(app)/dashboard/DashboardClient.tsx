@@ -10,6 +10,7 @@ import { QuranSection } from "@/components/sections/QuranSection";
 import { SunnahSection } from "@/components/sections/SunnahSection";
 import { DisciplineSection } from "@/components/sections/DisciplineSection";
 import { DailyVerseCard } from "@/components/ui/DailyVerseCard";
+import { DailyGuidanceCard } from "@/components/ui/DailyGuidanceCard";
 import { computeScore } from "@/lib/scoring";
 import type { DailyLog } from "@/db/schema";
 import { useRouter } from "next/navigation";
@@ -20,6 +21,10 @@ interface Props {
   activityData: { date: string; green: boolean; score: number }[];
   streak: number;
   today: string;
+  hijriFormatted: string;     // "7 Dhul Hijjah 1447"
+  hijriFormattedAr: string;   // Arabic
+  hijriDayName: string;       // "Wednesday"
+  hijriSource: "api" | "calculated";
 }
 
 const DEFAULTS = {
@@ -52,12 +57,14 @@ function fromExisting(e: DailyLog): Fields {
   };
 }
 
-export function DashboardClient({ existing, activityData, streak, today }: Props) {
+export function DashboardClient({
+  existing, activityData, streak, today,
+  hijriFormatted, hijriFormattedAr, hijriDayName, hijriSource,
+}: Props) {
   const friday = isFriday(today);
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
 
-  // Key prop on the component forces full remount when existing changes
   const [fields, setFields] = useState<Fields>(
     existing ? fromExisting(existing) : { ...DEFAULTS }
   );
@@ -81,7 +88,9 @@ export function DashboardClient({ existing, activityData, streak, today }: Props
     + (fields.verseDone ? 2 : 0) + (fields.islamicStudyMinutes >= 15 ? 1 : 0)
   );
   const sunnahPts = fields.surahMulk ? 10 : 0;
-  const disciplinePts = Math.round((Math.min(5, fields.gazeLowered) / 5) * 3 + (fields.haramFree ? 2 : 0));
+  const disciplinePts = Math.round(
+    (Math.min(5, fields.gazeLowered) / 5) * 3 + (fields.haramFree ? 2 : 0)
+  );
 
   async function handleSave() {
     setIsSaving(true);
@@ -93,7 +102,6 @@ export function DashboardClient({ existing, activityData, streak, today }: Props
       });
       if (!res.ok) throw new Error("Save failed");
       toast.success("Saved ✓");
-      // Hard navigate to same page — forces full server re-render from DB
       router.push("/dashboard");
     } catch {
       toast.error("Failed to save");
@@ -104,8 +112,10 @@ export function DashboardClient({ existing, activityData, streak, today }: Props
 
   return (
     <div className="max-w-2xl mx-auto px-4 pt-5 pb-6 space-y-5 animate-fade-in">
-      <div className="flex items-start justify-between">
-        <div>
+
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
           <p className="text-xs text-zinc-500 uppercase tracking-widest mb-0.5">
             {formatDisplayDate(today)}
           </p>
@@ -116,37 +126,68 @@ export function DashboardClient({ existing, activityData, streak, today }: Props
             </span>
           )}
         </div>
-        <div className={cn("flex flex-col items-center justify-center w-20 h-20 rounded-2xl border-2 shrink-0", scoreBg(finalScore))}>
+
+        {/* Score orb */}
+        <div className={cn(
+          "flex flex-col items-center justify-center w-20 h-20 rounded-2xl border-2 shrink-0",
+          scoreBg(finalScore)
+        )}>
           <span className={cn("text-2xl font-bold", scoreColor(finalScore))}>{finalScore}</span>
           <span className="text-[10px] text-zinc-500 font-medium">/ 100</span>
         </div>
       </div>
 
+      {/* ── Hijri date ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-zinc-600 uppercase tracking-widest">
+            Islamic Date{hijriSource === "calculated" ? " · estimated" : ""}
+          </span>
+          <span className="text-sm font-medium text-zinc-300">{hijriFormatted}</span>
+          <span className="text-xs text-zinc-500">{hijriDayName}</span>
+        </div>
+        <span className="arabic-text text-lg text-zinc-400 leading-relaxed" dir="rtl">
+          {hijriFormattedAr}
+        </span>
+      </div>
+
+      {/* ── Streak + save ──────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
           <Flame className="w-4 h-4 text-orange-400" />
           <span className="text-sm font-semibold text-zinc-200">{streak}</span>
           <span className="text-xs text-zinc-500">day streak</span>
         </div>
-        <button onClick={handleSave} disabled={isSaving} className="btn-primary flex items-center gap-2 ml-auto">
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="btn-primary flex items-center gap-2 ml-auto"
+        >
           <Save className="w-4 h-4" />
           {isSaving ? "Saving…" : "Save"}
         </button>
       </div>
 
+      {/* ── Activity grid ──────────────────────────────────────── */}
       <div className="card">
         <p className="section-title">Activity</p>
         <ActivityGrid data={activityData} />
       </div>
 
+      {/* ── AI Guidance ────────────────────────────────────────── */}
+      <DailyGuidanceCard />
+
+      {/* ── Daily verse ────────────────────────────────────────── */}
       <DailyVerseCard />
 
+      {/* ── Scored sections ────────────────────────────────────── */}
       <SalahSection fields={fields} set={set} />
       <DhikrSection fields={fields} set={set} />
       <QuranSection fields={fields} set={set} />
       <SunnahSection fields={fields} set={set} isFriday={friday} />
       <DisciplineSection fields={fields} set={set} />
 
+      {/* ── Score breakdown ────────────────────────────────────── */}
       <div className="card">
         <p className="section-title">Score Breakdown</p>
         <div className="grid grid-cols-2 gap-2 text-sm">
@@ -163,8 +204,10 @@ export function DashboardClient({ existing, activityData, streak, today }: Props
                 <span className="text-zinc-300 text-xs font-mono">{score}/{max}</span>
               </div>
               <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-                <div className="h-full bg-brand-500 rounded-full transition-all duration-500"
-                  style={{ width: `${(score / max) * 100}%` }} />
+                <div
+                  className="h-full bg-brand-500 rounded-full transition-all duration-500"
+                  style={{ width: `${(score / max) * 100}%` }}
+                />
               </div>
             </div>
           ))}

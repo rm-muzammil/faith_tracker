@@ -1,22 +1,21 @@
 import { QuranClient } from "./QuranClient";
 import { db } from "@/db";
-import { settings, memorizationLog } from "@/db/schema";
+import { settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
+
+export const dynamic = "force-dynamic";
 
 export default async function QuranPage() {
   const allSettings = await db.select().from(settings);
-  const settingMap = Object.fromEntries(allSettings.map((s) => [s.key, s.value]));
-  const currentIndex = parseInt(settingMap["current_verse_index"] ?? "0", 10);
+  const map = Object.fromEntries(allSettings.map((s) => [s.key, s.value]));
 
-  const recentLogs = await db
-    .select()
-    .from(memorizationLog)
-    .orderBy(memorizationLog.verseIndex);
+  const currentIndex = Math.max(0, parseInt(map["current_verse_index"] ?? "0", 10));
+  const verseLastAdvanced = map["verse_last_advanced"] ?? "";
 
   return (
     <QuranClient
       currentIndex={currentIndex}
-      logs={recentLogs}
+      verseLastAdvanced={verseLastAdvanced}
     />
   );
 }
