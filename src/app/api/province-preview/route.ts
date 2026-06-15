@@ -1,12 +1,23 @@
+// src/app/api/province-preview/route.ts
 import { NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import { db } from "@/db";
 import { dailyLog, settings, vocabBank } from "@/db/schema";
 import { eq, desc, count } from "drizzle-orm";
 
-const sql = neon(process.env.DATABASE_URL!);
+
 
 export async function GET() {
+    const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    return NextResponse.json(
+      { error: "DATABASE_URL is not configured" },
+      { status: 500 }
+    );
+  }
+
+  const sql = neon(databaseUrl);
   const today = new Date().toISOString().slice(0, 10);
 
   // Today's log

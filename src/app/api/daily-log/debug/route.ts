@@ -1,3 +1,4 @@
+// src/app/api/daily-log/debug/route.ts
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { dailyLog } from "@/db/schema";
