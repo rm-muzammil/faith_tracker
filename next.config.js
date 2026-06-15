@@ -1,4 +1,3 @@
-/** @type {import('next').NextConfig} */
 const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
@@ -16,26 +15,25 @@ const withPWA = require("next-pwa")({
     {
       urlPattern: /\/_next\/static\/.*/i,
       handler: "CacheFirst",
-      options: { cacheName: "static-cache", expiration: { maxEntries: 200 } },
+      options: {
+        cacheName: "static-cache",
+        expiration: { maxEntries: 200 },
+      },
     },
   ],
 });
 
 const nextConfig = {
   reactStrictMode: true,
-  experimental: { instrumentationHook: true },
   async headers() {
     return [
       {
-        // Never cache HTML pages — always fetch fresh from server
-        source: "/(.*)",
+        source: "/((?!_next/static|_next/image|favicon.ico).*)",
         headers: [
           {
             key: "Cache-Control",
-            value: "no-store, no-cache, must-revalidate, proxy-revalidate",
+            value: "no-store",
           },
-          { key: "Pragma", value: "no-cache" },
-          { key: "Expires", value: "0" },
         ],
       },
     ];
