@@ -1,5 +1,10 @@
+// src/lib/hijri.ts
 // Hijri date via Aladhan API — reflects actual moon-sighting announcements
 // Falls back to algorithmic calculation if API is unavailable
+
+import { db } from "@/db"
+import { settings } from "@/db/schema"
+import { eq } from "drizzle-orm"
 
 export interface HijriDate {
   day: number;
@@ -30,54 +35,74 @@ const HIJRI_MONTHS = [
 
 const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-// ─── Aladhan API (primary — moon-sighting aware) ─────────────────────────────
-// Method 1 = University of Islamic Sciences, Karachi (standard for Pakistan)
-async function fetchFromAladhan(gregorianDate: Date): Promise<HijriDate | null> {
+// ─── Read adjustment from DB (default -1 for Pakistan) ───────────────────────
+async function getHijriAdjustment(): Promise<number> {
   try {
-    const dd = String(gregorianDate.getDate()).padStart(2, "0");
-    const mm = String(gregorianDate.getMonth() + 1).padStart(2, "0");
-    const yyyy = gregorianDate.getFullYear();
-    // DD-MM-YYYY format required by Aladhan
-    const url = `https://api.aladhan.com/v1/gToH?date=${dd}-${mm}-${yyyy}`;
-
-    const res = await fetch(url, {
-      next: { revalidate: 3600 * 12 }, // cache 12hrs — Hijri date won't change mid-day
-    });
-    if (!res.ok) return null;
-
-    const json = await res.json();
-    const h = json?.data?.hijri;
-    if (!h) return null;
-
-    const monthIndex = parseInt(h.month.number, 10) - 1;
-    const monthData = HIJRI_MONTHS[monthIndex] ?? HIJRI_MONTHS[0];
-    const dayName = DAY_NAMES[gregorianDate.getDay()];
-    const day = parseInt(h.day, 10);
-    const year = parseInt(h.year, 10);
-
-    return {
-      day,
-      month: monthIndex + 1,
-      year,
-      monthName: monthData.en,
-      monthNameAr: monthData.ar,
-      dayName,
-      formatted: `${day} ${monthData.en} ${year}`,
-      formattedAr: `${day} ${monthData.ar} ${year}`,
-      source: "api",
-    };
+    const [row] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "hijri_adjustment"))
+      .limit(1)
+    return row ? parseInt(row.value, 10) : -1
   } catch {
-    return null;
+    return -1
   }
 }
 
-// ─── Algorithmic fallback (less accurate for moon-sighting countries) ─────────
+// ─── Aladhan API ──────────────────────────────────────────────────────────────
+async function fetchFromAladhan(
+  gregorianDate: Date,
+  adjustment: number
+): Promise<HijriDate | null> {
+  try {
+    // Use PKT date, not UTC
+    const pkDate = new Date(
+      gregorianDate.toLocaleString("en-US", { timeZone: "Asia/Karachi" })
+    )
+    const dd   = String(pkDate.getDate()).padStart(2, "0")
+    const mm   = String(pkDate.getMonth() + 1).padStart(2, "0")
+    const yyyy = pkDate.getFullYear()
+
+    // adjustment: -1 = Pakistan local sighting, 0 = global/Saudi
+    const url = `https://api.aladhan.com/v1/gToH/${dd}-${mm}-${yyyy}?adjustment=${adjustment}`
+
+    const res = await fetch(url, {
+      next: { revalidate: 3600 * 12 },
+    })
+    if (!res.ok) return null
+
+    const json = await res.json()
+    const h = json?.data?.hijri
+    if (!h) return null
+
+    const monthIndex = parseInt(h.month.number, 10) - 1
+    const monthData  = HIJRI_MONTHS[monthIndex] ?? HIJRI_MONTHS[0]
+    const dayName    = DAY_NAMES[pkDate.getDay()]
+    const day        = parseInt(h.day, 10)
+    const year       = parseInt(h.year, 10)
+
+    return {
+      day,
+      month:       monthIndex + 1,
+      year,
+      monthName:   monthData.en,
+      monthNameAr: monthData.ar,
+      dayName,
+      formatted:   `${day} ${monthData.en} ${year}`,
+      formattedAr: `${day} ${monthData.ar} ${year}`,
+      source:      "api",
+    }
+  } catch {
+    return null
+  }
+}
+
+// ─── Algorithmic fallback ─────────────────────────────────────────────────────
 function calculateHijri(date: Date): HijriDate {
   const y = date.getFullYear();
   const m = date.getMonth() + 1;
   const d = date.getDate();
 
-  // Julian Day Number
   let jd = Math.floor((14 - m) / 12);
   const yr = y + 4800 - jd;
   const mn = m + 12 * jd - 3;
@@ -85,7 +110,6 @@ function calculateHijri(date: Date): HijriDate {
     + Math.floor(yr / 4) - Math.floor(yr / 100)
     + Math.floor(yr / 400) - 32045;
 
-  // Hijri conversion
   const l = jd - 1948440 + 10632;
   const n = Math.floor((l - 1) / 10631);
   const ll = l - 10631 * n + 354;
@@ -105,26 +129,27 @@ function calculateHijri(date: Date): HijriDate {
     day,
     month,
     year,
-    monthName: monthData.en,
+    monthName:   monthData.en,
     monthNameAr: monthData.ar,
     dayName,
-    formatted: `${day} ${monthData.en} ${year} (est.)`,
+    formatted:   `${day} ${monthData.en} ${year} (est.)`,
     formattedAr: `${day} ${monthData.ar} ${year}`,
-    source: "calculated",
+    source:      "calculated",
   };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Server-side: fetches from Aladhan API (accurate, moon-sighting aware).
+ * Server-side: fetches from Aladhan API with Pakistan moon sighting adjustment.
+ * Reads hijri_adjustment from settings DB (default -1).
  * Call this in Server Components / API routes only.
  */
 export async function getHijriDate(date: Date = new Date()): Promise<HijriDate> {
-  const fromApi = await fetchFromAladhan(date);
-  if (fromApi) return fromApi;
-  // Fallback — show "(est.)" suffix so user knows it's approximate
-  return calculateHijri(date);
+  const adjustment = await getHijriAdjustment()
+  const fromApi = await fetchFromAladhan(date, adjustment)
+  if (fromApi) return fromApi
+  return calculateHijri(date)
 }
 
 /**

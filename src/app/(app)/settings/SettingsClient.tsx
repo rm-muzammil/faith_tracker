@@ -1,6 +1,7 @@
+// src/app/(app)/settings/SettingsClient.tsx
 "use client";
 import { useState } from "react";
-import { Save, Link2, Key, BookMarked, RefreshCw } from "lucide-react";
+import { Save, Link2, Key, BookMarked, RefreshCw, Moon } from "lucide-react";
 import toast from "react-hot-toast";
 import { TOTAL_JUZ30_VERSES } from "@/lib/quran";
 
@@ -13,9 +14,12 @@ export function SettingsClient({ initialSettings }: Props) {
     initialSettings["sk_url"] ?? "https://self-khilafah.vercel.app"
   );
   const [apiKey, setApiKey] = useState(initialSettings["api_key"] ?? "");
-  const [geminiKey, setGeminiKey] = useState(initialSettings['gemini_api_key'] ?? '');
+  const [geminiKey, setGeminiKey] = useState(initialSettings["gemini_api_key"] ?? "");
   const [verseIndex, setVerseIndex] = useState(
     parseInt(initialSettings["current_verse_index"] ?? "0", 10)
+  );
+  const [hijriAdj, setHijriAdj] = useState(
+    parseInt(initialSettings["hijri_adjustment"] ?? "-1", 10)
   );
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -31,6 +35,7 @@ export function SettingsClient({ initialSettings }: Props) {
           api_key: apiKey,
           gemini_api_key: geminiKey,
           current_verse_index: String(verseIndex),
+          hijri_adjustment: String(hijriAdj),
         }),
       });
       toast.success("Settings saved");
@@ -42,25 +47,12 @@ export function SettingsClient({ initialSettings }: Props) {
   async function testPush() {
     setTesting(true);
     try {
-      const res = await fetch(`${skUrl}/api/provinces/report`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Api-Key": apiKey,
-        },
-        body: JSON.stringify({
-          score: 0,
-          label: "Faith",
-          streak: 0,
-          todayDone: false,
-          updatedAt: new Date().toISOString(),
-          details: {},
-        }),
-      });
-      if (res.ok) toast.success("Self-Khilafah reached ✓");
-      else toast.error(`Response: ${res.status}`);
+      const res = await fetch("/api/settings/test-push", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) toast.success("Self-Khilafah reached ✓");
+      else toast.error(data.error ?? "Push failed");
     } catch {
-      toast.error("Could not reach Self-Khilafah");
+      toast.error("Could not reach server");
     } finally {
       setTesting(false);
     }
@@ -76,7 +68,6 @@ export function SettingsClient({ initialSettings }: Props) {
       {/* Self-Khilafah integration */}
       <div className="card space-y-4">
         <p className="section-title mb-0">Self-Khilafah Integration</p>
-
         <div>
           <label className="text-xs text-zinc-500 mb-1.5 flex items-center gap-1.5">
             <Link2 className="w-3 h-3" /> Province URL
@@ -88,7 +79,6 @@ export function SettingsClient({ initialSettings }: Props) {
             placeholder="https://self-khilafah.vercel.app"
           />
         </div>
-
         <div>
           <label className="text-xs text-zinc-500 mb-1.5 flex items-center gap-1.5">
             <Key className="w-3 h-3" /> API Key
@@ -101,7 +91,6 @@ export function SettingsClient({ initialSettings }: Props) {
             placeholder="PROVINCE_API_KEY"
           />
         </div>
-
         <div className="flex gap-2">
           <button
             onClick={testPush}
@@ -109,7 +98,7 @@ export function SettingsClient({ initialSettings }: Props) {
             className="btn-ghost flex items-center gap-2 flex-1"
           >
             <RefreshCw className={`w-4 h-4 ${testing ? "animate-spin" : ""}`} />
-            Test Push
+            {testing ? "Testing…" : "Test Push"}
           </button>
         </div>
       </div>
@@ -143,6 +132,44 @@ export function SettingsClient({ initialSettings }: Props) {
             <RefreshCw className="w-3 h-3" /> Regenerate today's guidance
           </button>
         )}
+      </div>
+
+      {/* Hijri date adjustment */}
+      <div className="card space-y-3">
+        <p className="section-title mb-0">
+          <span className="flex items-center gap-2">
+            <Moon className="w-4 h-4 text-zinc-400" />
+            Hijri Date (Moon Sighting)
+          </span>
+        </p>
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          Pakistan's Ruet-e-Hilal Committee sometimes differs from the global
+          calculation by 1 day. Adjust here after each month's announcement.
+        </p>
+        <div className="flex gap-2">
+          {([-1, 0, 1] as const).map((val) => (
+            <button
+              key={val}
+              onClick={() => setHijriAdj(val)}
+              className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                hijriAdj === val
+                  ? "border-brand-600 bg-brand-900/30 text-brand-400"
+                  : "border-zinc-700 text-zinc-500 hover:border-zinc-500"
+              }`}
+            >
+              {val === -1 ? "−1 day" : val === 0 ? "Global" : "+1 day"}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-600">
+          Current: <span className="text-zinc-400">
+            {hijriAdj === -1
+              ? "−1 day (Pakistan local sighting)"
+              : hijriAdj === 0
+              ? "Global / Saudi calculation"
+              : "+1 day"}
+          </span>
+        </p>
       </div>
 
       {/* Verse index */}
@@ -182,7 +209,6 @@ export function SettingsClient({ initialSettings }: Props) {
         {saving ? "Saving…" : "Save Settings"}
       </button>
 
-      {/* App info */}
       <div className="card text-center space-y-1">
         <p className="text-sm font-semibold text-zinc-300">Faith Tracker</p>
         <p className="text-xs text-zinc-600">
