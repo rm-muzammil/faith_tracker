@@ -6,6 +6,8 @@ import { computeScore } from "@/lib/scoring";
 import { pushProvinceReport } from "@/lib/province";
 import { TOTAL_JUZ30_VERSES } from "@/lib/quran";
 
+import { waitUntil } from "@vercel/functions";
+
 async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -154,9 +156,11 @@ export async function POST(req: NextRequest) {
   const skUrl = settingMap2["sk_url"] ?? "https://self-khilafah.vercel.app";
   const apiKey = settingMap2["api_key"] ?? "";
 
-  if (apiKey) {
-    pushProvinceReport(saved, streak, rakuCount as number, vocabCount as number, skUrl, apiKey);
-  }
+if (apiKey) {
+  waitUntil(
+    pushProvinceReport(saved, streak, rakuCount as number, vocabCount as number, skUrl, apiKey)
+  );
+}
 
   return NextResponse.json({ ok: true, score: finalScore, streak, row: saved });
 }
