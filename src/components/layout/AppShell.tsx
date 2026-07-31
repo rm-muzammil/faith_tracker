@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/dashboard", label: "Today", icon: LayoutDashboard },
   { href: "/quran", label: "Quran", icon: BookOpen },
+  { href: "/dhikr", label: "Dhikr", icon: Sparkles },
   { href: "/raku", label: "Raku", icon: Grid3X3 },
   { href: "/vocab", label: "Vocab", icon: Sparkles },
   { href: "/settings", label: "Settings", icon: Settings },

@@ -7,6 +7,7 @@ import {
   date,
   serial,
   real,
+  unique,
 } from "drizzle-orm/pg-core";
 
 // ─── daily_log ──────────────────────────────────────────────────────────────
@@ -94,6 +95,23 @@ export const settings = pgTable("settings", {
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ─── dhikr_counts ─────────────────────────────────────────────────────────────
+export const dhikrCounts = pgTable("dhikr_counts", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  dhikrKey: text("dhikr_key").notNull(), // "la_ilaha" | "subhanallah" | "morning_1"..etc
+  count: integer("count").notNull().default(0),
+  target: integer("target").notNull().default(100),
+  completed: boolean("completed").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+},(table) => ({
+  dateKeyUnique: unique().on(table.date, table.dhikrKey),
+})
+);
+
+export type DhikrCount = typeof dhikrCounts.$inferSelect;
 
 // Type exports
 export type DailyLog = typeof dailyLog.$inferSelect;
