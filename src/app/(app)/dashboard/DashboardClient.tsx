@@ -31,7 +31,7 @@ const DEFAULTS = {
   fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false,
   onTime: 0,
   morningAdhkar: false, eveningAdhkar: false,
-  dhikrMinutes: 0, duaMinutes: 0,
+  beforeSleepAdhkar: false, duaMinutes: 0,
   laIlaha: false, subhanallahi: false,
   quranPages: 0, tadabburMinutes: 0,
   tafseerDone: false, tajweedConfidence: 0,
@@ -47,7 +47,7 @@ function fromExisting(e: DailyLog): Fields {
     fajr: e.fajr, dhuhr: e.dhuhr, asr: e.asr, maghrib: e.maghrib, isha: e.isha,
     onTime: e.onTime,
     morningAdhkar: e.morningAdhkar, eveningAdhkar: e.eveningAdhkar,
-    dhikrMinutes: e.dhikrMinutes, duaMinutes: e.duaMinutes,
+    beforeSleepAdhkar: e.beforeSleepAdhkar, duaMinutes: e.duaMinutes,
     laIlaha: e.laIlaha, subhanallahi: e.subhanallahi,
     quranPages: e.quranPages, tadabburMinutes: e.tadabburMinutes,
     tafseerDone: e.tafseerDone, tajweedConfidence: e.tajweedConfidence,
@@ -80,7 +80,7 @@ export function DashboardClient({
     + (Math.min(5, fields.onTime) / 5) * 10
   );
   const dhikrPts = (fields.morningAdhkar ? 5 : 0) + (fields.eveningAdhkar ? 5 : 0)
-    + (fields.dhikrMinutes >= 5 ? 4 : 0) + (fields.duaMinutes > 0 ? 3 : 0)
+    + (fields.beforeSleepAdhkar ? 5 : 0) + (fields.duaMinutes > 0 ? 3 : 0)
     + (fields.laIlaha ? 4 : 0) + (fields.subhanallahi ? 4 : 0);
   const quranPts = Math.round(
     (fields.quranPages >= 1 ? 3 : 0) + (fields.tadabburMinutes >= 5 ? 2 : 0)

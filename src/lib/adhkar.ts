@@ -43,7 +43,7 @@ export const MORNING_ADHKAR: AdhkarItem[] = [
     arabic: "لاَ إِلَهَ إِلاَّ اللَّهُ وَحْدَهُ لاَ شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ",
     transliteration: "La ilaha illallahu wahdahu la sharika lah...",
     translation: "None has the right to be worshipped except Allah, alone, without partner. To Him belongs the dominion and all praise, and He is over all things competent.",
-    count: 10,
+    count: 100,
     benefit: "Equivalent to freeing 4 slaves, 10 good deeds written, 10 sins erased",
   },
   {
@@ -264,26 +264,5 @@ export const BEFORE_SLEEP_ADHKAR: AdhkarItem[] = [
     translation: "Recite Surah Al-Ikhlas, Al-Falaq, and An-Nas — blow into cupped hands and wipe over body 3 times.",
     count: 3,
     benefit: "Sufficient for everything",
-  },
-];
-
-export const COUNTER_DHIKR = [
-  {
-    key: "la_ilaha",
-    arabic: "لَا إِلَهَ إِلَّا اللَّهُ",
-    transliteration: "La ilaha illallah",
-    translation: "There is no god but Allah",
-    target: 100,
-    benefit: "Best of dhikr",
-    color: "brand" as const,
-  },
-  {
-    key: "subhanallah",
-    arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ",
-    transliteration: "Subhanallahi wa bihamdihi",
-    translation: "Glory be to Allah and praise Him",
-    target: 100,
-    benefit: "Sins wiped away even if like foam of the sea",
-    color: "emerald" as const,
   },
 ];

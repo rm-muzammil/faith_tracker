@@ -8,7 +8,7 @@ interface Props {
   fields: {
     morningAdhkar: boolean;
     eveningAdhkar: boolean;
-    dhikrMinutes: number;
+    beforeSleepAdhkar: boolean;
     duaMinutes: number;
     laIlaha: boolean;
     subhanallahi: boolean;
@@ -66,37 +66,22 @@ export function DhikrSection({ fields, set }: Props) {
           label="Morning Adhkar"
           sublabel={fields.morningAdhkar ? "All done ✓" : "Tap to open — أذكار الصباح"}
           done={fields.morningAdhkar}
-          href="/dhikr"
+          href="/dhikr?section=morning"
           pts={5}
         />
         <AdhkarLinkRow
           label="Evening Adhkar"
           sublabel={fields.eveningAdhkar ? "All done ✓" : "Tap to open — أذكار المساء"}
           done={fields.eveningAdhkar}
-          href="/dhikr"
+          href="/dhikr?section=evening"
           pts={5}
         />
         <AdhkarLinkRow
-          label="لا إله إلا الله × 100"
-          sublabel={fields.laIlaha ? "100 completed ✓" : "Tap to open counter"}
-          done={fields.laIlaha}
-          href="/dhikr"
-          pts={4}
-        />
-        <AdhkarLinkRow
-          label="سبحان الله وبحمده × 100"
-          sublabel={fields.subhanallahi ? "100 completed ✓" : "Tap to open counter"}
-          done={fields.subhanallahi}
-          href="/dhikr"
-          pts={4}
-        />
-        <NumberInput
-          label="General Dhikr"
-          sublabel="≥5 min = full points"
-          value={fields.dhikrMinutes}
-          onChange={(v) => set("dhikrMinutes", v)}
-          unit="min"
-          pts={4}
+          label="Before Sleep Adhkar"
+          sublabel={fields.beforeSleepAdhkar ? "All done ✓" : "Tap to open — أذكار النوم"}
+          done={fields.beforeSleepAdhkar}
+          href="/dhikr?section=before-sleep"
+          pts={5}
         />
         <NumberInput
           label="Dua"

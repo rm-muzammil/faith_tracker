@@ -26,7 +26,7 @@ export const dailyLog = pgTable("daily_log", {
   // Dhikr
   morningAdhkar: boolean("morning_adhkar").notNull().default(false),
   eveningAdhkar: boolean("evening_adhkar").notNull().default(false),
-  dhikrMinutes: integer("dhikr_minutes").notNull().default(0),
+  beforeSleepAdhkar: boolean("before_sleep_adhkar").notNull().default(false),
   duaMinutes: integer("dua_minutes").notNull().default(0),
   laIlaha: boolean("la_ilaha").notNull().default(false),
   subhanallahi: boolean("subhanallahi").notNull().default(false),

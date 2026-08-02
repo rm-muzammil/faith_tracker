@@ -12,10 +12,11 @@ interface Props {
   date: string;
   counts: Record<string, { count: number; completed: boolean }>;
   onAllDone?: () => void;
+  defaultOpen?: boolean;
 }
 
-export function AdhkarSection({ title, titleAr, items, date, counts, onAllDone }: Props) {
-  const [open, setOpen] = useState(false);
+export function AdhkarSection({ title, titleAr, items, date, counts, onAllDone, defaultOpen }: Props) {
+const [open, setOpen] = useState(defaultOpen ?? false);
 
   const doneCount = items.filter((item) => {
     const c = counts[item.key];

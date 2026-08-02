@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { AdhkarSection } from "@/components/ui/AdhkarSection";
 import { DhikrCounter } from "@/components/ui/DhikrCounter";
-import { MORNING_ADHKAR, EVENING_ADHKAR, BEFORE_SLEEP_ADHKAR, COUNTER_DHIKR } from "@/lib/adhkar";
+import { MORNING_ADHKAR, EVENING_ADHKAR, BEFORE_SLEEP_ADHKAR } from "@/lib/adhkar";
 
 interface Props {
   today: string;
@@ -10,7 +11,29 @@ interface Props {
 }
 
 export function DhikrClient({ today, initialCounts }: Props) {
-  const [counts, setCounts] = useState(initialCounts);
+  const [counts] = useState(initialCounts);
+  const searchParams = useSearchParams();
+  const section = searchParams.get("section"); // "morning" | "evening" | "counter" | "sleep"
+
+  const morningRef = useRef<HTMLDivElement>(null);
+  const eveningRef = useRef<HTMLDivElement>(null);
+  const counterRef = useRef<HTMLDivElement>(null);
+  const sleepRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll and auto-open the section from URL param
+  useEffect(() => {
+    const refMap: Record<string, React.RefObject<HTMLDivElement>> = {
+      morning: morningRef,
+      evening: eveningRef,
+      counter: counterRef,
+      sleep: sleepRef,
+    };
+    if (section && refMap[section]?.current) {
+      setTimeout(() => {
+        refMap[section].current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [section]);
 
   return (
     <div className="max-w-2xl mx-auto px-4 pt-5 pb-6 space-y-5 animate-fade-in">
@@ -19,29 +42,9 @@ export function DhikrClient({ today, initialCounts }: Props) {
         <h1 className="text-xl font-bold text-zinc-100">Adhkar & Dhikr</h1>
       </div>
 
-      {/* Main counters */}
-      <div>
-        <p className="section-title">Daily Counters</p>
-        <div className="space-y-4">
-          {COUNTER_DHIKR.map((d) => (
-            <DhikrCounter
-              key={d.key}
-              dhikrKey={d.key}
-              arabic={d.arabic}
-              transliteration={d.transliteration}
-              translation={d.translation}
-              target={d.target}
-              benefit={d.benefit}
-              date={today}
-              initialCount={counts[d.key]?.count ?? 0}
-              initialCompleted={counts[d.key]?.completed ?? false}
-            />
-          ))}
-        </div>
-      </div>
 
-      {/* Morning Adhkar */}
-      <div>
+      {/* Morning */}
+      <div ref={morningRef}>
         <p className="section-title">Morning Adhkar</p>
         <AdhkarSection
           title="Morning Adhkar"
@@ -49,11 +52,12 @@ export function DhikrClient({ today, initialCounts }: Props) {
           items={MORNING_ADHKAR}
           date={today}
           counts={counts}
+          defaultOpen={section === "morning"}
         />
       </div>
 
-      {/* Evening Adhkar */}
-      <div>
+      {/* Evening */}
+      <div ref={eveningRef}>
         <p className="section-title">Evening Adhkar</p>
         <AdhkarSection
           title="Evening Adhkar"
@@ -61,11 +65,12 @@ export function DhikrClient({ today, initialCounts }: Props) {
           items={EVENING_ADHKAR}
           date={today}
           counts={counts}
+          defaultOpen={section === "evening"}
         />
       </div>
 
-      {/* Before Sleep */}
-      <div>
+      {/* Sleep */}
+      <div ref={sleepRef}>
         <p className="section-title">Before Sleep</p>
         <AdhkarSection
           title="Before Sleep Adhkar"
@@ -73,6 +78,7 @@ export function DhikrClient({ today, initialCounts }: Props) {
           items={BEFORE_SLEEP_ADHKAR}
           date={today}
           counts={counts}
+          defaultOpen={section === "sleep"}
         />
       </div>
     </div>
