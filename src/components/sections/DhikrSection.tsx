@@ -66,21 +66,21 @@ export function DhikrSection({ fields, set }: Props) {
           label="Morning Adhkar"
           sublabel={fields.morningAdhkar ? "All done ✓" : "Tap to open — أذكار الصباح"}
           done={fields.morningAdhkar}
-          href="/dhikr?section=morning"
+          href="/dhikr/morning"
           pts={5}
         />
         <AdhkarLinkRow
           label="Evening Adhkar"
           sublabel={fields.eveningAdhkar ? "All done ✓" : "Tap to open — أذكار المساء"}
           done={fields.eveningAdhkar}
-          href="/dhikr?section=evening"
+          href="/dhikr/evening"
           pts={5}
         />
         <AdhkarLinkRow
           label="Before Sleep Adhkar"
           sublabel={fields.beforeSleepAdhkar ? "All done ✓" : "Tap to open — أذكار النوم"}
           done={fields.beforeSleepAdhkar}
-          href="/dhikr?section=before-sleep"
+          href="/dhikr/sleep"
           pts={5}
         />
         <NumberInput
